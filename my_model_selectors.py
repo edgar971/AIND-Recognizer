@@ -75,9 +75,22 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        components_range = range(self.min_n_components, self.max_n_components + 1)
+        best_bic = float('inf')
+        best_model = None
+        
+        for n in components_range:
+            try:
+                number_of_params = len(self.lengths)**2 + 2*n*len(self.lengths) - 1
+                model = self.base_model(n) 
+                bic = -2*(model.score(self.X, self.lengths)) + number_of_params*np.log(len(self.lengths))
+                if bic < best_bic:
+                    best_bic = bic
+                    best_model = model
+            except:
+                pass
+        return best_model
 
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
 
 
 class SelectorDIC(ModelSelector):
@@ -92,9 +105,32 @@ class SelectorDIC(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        components_range = range(self.min_n_components, self.max_n_components + 1)
+        best_dic = float('-inf')
+        best_model = None
+        
+        for n in components_range:
+            try:
+                model = self.base_model(n)
+                log_l = []
+                for word in self.words.keys():
+                    if word == self.this_word:
+                        continue
+                    else:
+                        log_l.append(model.score(self.X, self.lengths))
+                
+                dic = model.score(self.X, self.lengths) - np.mean(log_l)
+                if dic > best_dic:
+                    best_dic = dic
+                    best_model = model
+            except:
+                pass
+        
+        if best_model:
+            return best_model
+        
+        return self.base_model(self.n_constant)
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
 
 
 class SelectorCV(ModelSelector):
@@ -104,6 +140,28 @@ class SelectorCV(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        components_range = range(self.min_n_components, self.max_n_components + 1)
+        best_CV = float('-inf')
+        best_model = None
+        
+        for n in components_range:
+            try:
+                method = KFold()
+                log_l_list = []
+                model = self.base_model(n)
+                
+                for _, test_idx in method.split(self.sequences):
+                    test_x, test_lengths = combine_sequences(test_idx, self.sequences)
+                    log_l_list.append(model.score(test_x, test_lengths))
+                
+                mean = np.mean(log_l_list)
+                if mean > best_CV:
+                    best_CV = mean
+                    best_model = model
+            except:
+                pass
+        
+        if best_model:
+            return best_model
+        
+        return self.base_model(self.n_constant)
