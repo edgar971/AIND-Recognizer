@@ -74,7 +74,6 @@ class SelectorBIC(ModelSelector):
 
         :return: GaussianHMM object
         """
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
         components_range = range(self.min_n_components, self.max_n_components + 1)
         best_bic = float('inf')
         best_model = None
@@ -104,7 +103,6 @@ class SelectorDIC(ModelSelector):
     '''
 
     def select(self):
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
         components_range = range(self.min_n_components, self.max_n_components + 1)
         best_dic = float('-inf')
         best_model = None
@@ -117,7 +115,7 @@ class SelectorDIC(ModelSelector):
                     if word == self.this_word:
                         continue
                     else:
-                        log_l.append(model.score(self.X, self.lengths))
+                        log_l.append(model.score(word.X, word.lengths))
                 
                 dic = model.score(self.X, self.lengths) - np.mean(log_l)
                 if dic > best_dic:
@@ -139,24 +137,32 @@ class SelectorCV(ModelSelector):
     '''
 
     def select(self):
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
         components_range = range(self.min_n_components, self.max_n_components + 1)
         best_CV = float('-inf')
         best_model = None
         
         for n in components_range:
             try:
-                method = KFold()
+                if(len(self.sequences) < 3):
+                  best_model = self.base_model(n)
+                  break
+
+                method = KFold(n_splits=3)
                 log_l_list = []
                 model = self.base_model(n)
                 
-                for _, test_idx in method.split(self.sequences):
+                for train_idx, test_idx in method.split(self.sequences):
+                    train_x, train_lengths = combine_sequences(train_idx, self.sequences)
                     test_x, test_lengths = combine_sequences(test_idx, self.sequences)
-                    log_l_list.append(model.score(test_x, test_lengths))
+                    model = GaussianHMM(n_components=n, covariance_type="diag",
+                                                n_iter=1000, random_state=self.random_state,
+                                                verbose=False).fit(train_x,train_lengths)
+                    score = model.score(test_x, test_lengths)
+                    log_l_list.append(score)
                 
-                mean = np.mean(log_l_list)
-                if mean > best_CV:
-                    best_CV = mean
+                average = np.average(log_l_list)
+                if average > best_CV:
+                    best_CV = average
                     best_model = model
             except:
                 pass
