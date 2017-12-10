@@ -80,15 +80,21 @@ class SelectorBIC(ModelSelector):
         
         for n in components_range:
             try:
-                number_of_params = len(self.lengths)**2 + 2*n*len(self.lengths) - 1
                 model = self.base_model(n) 
-                bic = -2*(model.score(self.X, self.lengths)) + number_of_params*np.log(len(self.lengths))
+                score = model.score(self.X, self.lengths)
+                number_of_params = n * (n - 1) + (2 * mode.n_features * n) - 1
+                bic = -2 * score + number_of_params * np.log(self.X.shape[0])
                 if bic < best_bic:
                     best_bic = bic
                     best_model = model
             except:
                 pass
-        return best_model
+
+        if best_model != None:
+            return best_model
+        else: 
+            return self.base_model(self.n_constant)
+            
 
 
 
